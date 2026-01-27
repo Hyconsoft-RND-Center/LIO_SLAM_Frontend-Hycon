@@ -13,6 +13,7 @@
 #include "dlio/odom.h"
 #include "dlio/utils.h"
 
+#include <algorithm>
 #include <queue>
 
 #include "rclcpp/qos.hpp"
@@ -340,6 +341,50 @@ void dlio::OdomNode::publishPose() {
   this->odom_ros.twist.twist.angular.x = this->state.v.ang.b[0];
   this->odom_ros.twist.twist.angular.y = this->state.v.ang.b[1];
   this->odom_ros.twist.twist.angular.z = this->state.v.ang.b[2];
+
+  // Compute pose covariance from GICP Hessian (Cramer-Rao bound: Cov = H^-1)
+  // Hessian order: [rx, ry, rz, tx, ty, tz]
+  // ROS Odometry covariance order: [x, y, z, rx, ry, rz] (row-major 6x6 = 36)
+  Eigen::Matrix<double, 6, 6> pose_cov = Eigen::Matrix<double, 6, 6>::Identity();
+  
+  if (this->geo.first_opt_done && this->gicp_hasConverged) {
+    // Get Hessian from GICP
+    const Eigen::Matrix<double, 6, 6>& H = this->gicp.getFinalHessian();
+    
+    // Check if Hessian is valid (not singular)
+    double det = H.determinant();
+    if (std::abs(det) > 1e-10) {
+      // Compute covariance as inverse of Hessian
+      Eigen::Matrix<double, 6, 6> gicp_cov = H.inverse();
+      
+      // Reorder from GICP [rx,ry,rz,tx,ty,tz] to ROS [x,y,z,rx,ry,rz]
+      // Translation (GICP 3,4,5 -> ROS 0,1,2)
+      pose_cov.block<3, 3>(0, 0) = gicp_cov.block<3, 3>(3, 3);  // trans-trans
+      pose_cov.block<3, 3>(0, 3) = gicp_cov.block<3, 3>(3, 0);  // trans-rot
+      pose_cov.block<3, 3>(3, 0) = gicp_cov.block<3, 3>(0, 3);  // rot-trans
+      pose_cov.block<3, 3>(3, 3) = gicp_cov.block<3, 3>(0, 0);  // rot-rot
+      
+      // Clamp covariance to reasonable bounds
+      const double min_var = 1e-6;
+      const double max_var = 100.0;
+      for (int i = 0; i < 6; ++i) {
+        pose_cov(i, i) = std::clamp(pose_cov(i, i), min_var, max_var);
+      }
+    } else {
+      // Hessian is singular - use high uncertainty
+      pose_cov = Eigen::Matrix<double, 6, 6>::Identity() * 10.0;
+    }
+  } else {
+    // GICP not converged or not yet optimized - use high uncertainty
+    pose_cov = Eigen::Matrix<double, 6, 6>::Identity() * 10.0;
+  }
+  
+  // Fill ROS covariance (row-major 6x6)
+  for (int i = 0; i < 6; ++i) {
+    for (int j = 0; j < 6; ++j) {
+      this->odom_ros.pose.covariance[i * 6 + j] = pose_cov(i, j);
+    }
+  }
 
   this->odom_pub->publish(this->odom_ros);
 
