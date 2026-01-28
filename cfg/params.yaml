@@ -12,15 +12,16 @@
 
 /**:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     frames/odom: robot1/odom
     frames/baselink: robot1/base_link
     frames/lidar: robot1/os_lidar
     frames/imu: robot1/os_imu
 
-    map/waitUntilMove: true
+    map/waitUntilMove: false
     map/dense/filtered: false
     map/sparse/leafSize: 0.25
+    map/save_path: "map/dlio_map.pcd"
 
     odom/gravity: 9.80665
     odom/computeTimeOffset: true
@@ -34,8 +35,8 @@
     odom/preprocessing/cropBoxFilter/size: 1.0
     odom/preprocessing/voxelFilter/res: 0.25
 
-    odom/keyframe/threshD: 1.0
-    odom/keyframe/threshR: 45.0
+    odom/keyframe/threshD: 2.0
+    odom/keyframe/threshR: 30.0
 
     odom/submap/keyframe/knn: 10
     odom/submap/keyframe/kcv: 10
