@@ -13,6 +13,8 @@
 #include "dlio/map.h"
 #include "dlio/utils.h"
 
+#include <filesystem>
+
 dlio::MapNode::MapNode(): Node("dlio_map_node") {
 
   this->getParams();
@@ -41,9 +43,11 @@ void dlio::MapNode::getParams() {
 
   this->declare_parameter<std::string>("odom/odom_frame", "odom");
   this->declare_parameter<double>("map/sparse/leafSize", 0.5);
+  this->declare_parameter<std::string>("map/save_path", "map/dlio_map.pcd");
 
   this->get_parameter("odom/odom_frame", this->odom_frame);
   this->get_parameter("map/sparse/leafSize", this->leaf_size_);
+  this->get_parameter("map/save_path", this->save_path_);
 }
 
 void dlio::MapNode::start() {
@@ -80,8 +84,24 @@ void dlio::MapNode::savePCD(std::shared_ptr<direct_lidar_inertial_odometry::srv:
 
   float leaf_size = req->leaf_size;
   std::string p = req->save_path;
+  if (this->has_parameter("map/save_path")) {
+    p = this->get_parameter("map/save_path").as_string();
+  }
 
-  std::cout << std::setprecision(2) << "Saving map to " << p + "/dlio_map.pcd"
+  std::filesystem::path out_path(p);
+
+  if (out_path.extension() != ".pcd") {
+    out_path /= "dlio_map.pcd";
+  }
+
+  const auto parent_dir = out_path.parent_path();
+  if (!parent_dir.empty()) {
+    std::filesystem::create_directories(parent_dir);
+  }
+
+  const std::string pcd_path = out_path.string();
+
+  std::cout << std::setprecision(2) << "Saving map to " << pcd_path
     << " with leaf size " << to_string_with_precision(leaf_size, 2) << "... "; std::cout.flush();
 
   // voxelize map
@@ -91,7 +111,7 @@ void dlio::MapNode::savePCD(std::shared_ptr<direct_lidar_inertial_odometry::srv:
   vg.filter(*m);
 
   // save map
-  int ret = pcl::io::savePCDFileBinary(p + "/dlio_map.pcd", *m);
+  int ret = pcl::io::savePCDFileBinary(pcd_path, *m);
   res->success = ret == 0;
 
   if (res->success) {

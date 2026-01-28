@@ -22,12 +22,42 @@ def generate_launch_description():
     rviz = LaunchConfiguration('rviz', default='false')
     pointcloud_topic = LaunchConfiguration('pointcloud_topic', default='/robot1/ouster/points')
     imu_topic = LaunchConfiguration('imu_topic', default='/robot1/ouster/imu')
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    odom_frame = LaunchConfiguration('odom_frame', default='robot1/odom')
+    base_frame = LaunchConfiguration('base_frame', default='robot1/base_link')
+    lidar_frame = LaunchConfiguration('lidar_frame', default='robot1/os_lidar')
+    imu_frame = LaunchConfiguration('imu_frame', default='robot1/os_imu')
 
     # Define arguments
+    declare_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='false',
+        description='Use simulation time'
+    )
     declare_rviz_arg = DeclareLaunchArgument(
         'rviz',
         default_value=rviz,
         description='Launch RViz'
+    )
+    declare_odom_frame_arg = DeclareLaunchArgument(
+        'odom_frame',
+        default_value=odom_frame,
+        description='Odometry frame name'
+    )
+    declare_base_frame_arg = DeclareLaunchArgument(
+        'base_frame',
+        default_value=base_frame,
+        description='Base frame name'
+    )
+    declar_lidar_frame_arg = DeclareLaunchArgument(
+        'lidar_frame',
+        default_value=lidar_frame,
+        description='LiDAR frame name'
+    )
+    declare_imu_frame_arg = DeclareLaunchArgument(
+        'imu_frame',
+        default_value=imu_frame,
+        description='IMU frame name'
     )
     declare_pointcloud_topic_arg = DeclareLaunchArgument(
         'pointcloud_topic',
@@ -49,7 +79,14 @@ def generate_launch_description():
         package='direct_lidar_inertial_odometry',
         executable='dlio_odom_node',
         output='screen',
-        parameters=[dlio_yaml_path, dlio_params_yaml_path],
+        parameters=[dlio_yaml_path, dlio_params_yaml_path, 
+        {
+            'use_sim_time': use_sim_time,
+            'odom_frame': odom_frame, 
+            'base_frame': base_frame, 
+            'lidar_frame': lidar_frame, 
+            'imu_frame': imu_frame
+        }],
         remappings=[
             ('pointcloud', pointcloud_topic),
             ('imu', imu_topic),
@@ -67,7 +104,14 @@ def generate_launch_description():
         package='direct_lidar_inertial_odometry',
         executable='dlio_map_node',
         output='screen',
-        parameters=[dlio_yaml_path, dlio_params_yaml_path],
+        parameters=[dlio_yaml_path, dlio_params_yaml_path, 
+        {
+            'use_sim_time': use_sim_time,
+            'lidar_frame': lidar_frame,
+            'imu_frame': imu_frame,
+            'odom_frame': odom_frame, 
+            'base_frame': base_frame
+        }],
         remappings=[
             ('keyframes', 'dlio/odom_node/pointcloud/keyframe'),
         ],
