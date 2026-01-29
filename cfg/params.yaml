@@ -13,10 +13,10 @@
 /**:
   ros__parameters:
     use_sim_time: false
-    frames/odom: robot1/odom
-    frames/baselink: robot1/base_link
-    frames/lidar: robot1/os_lidar
-    frames/imu: robot1/os_imu
+    frames/odom: odom
+    frames/baselink: base_link
+    frames/lidar: os_lidar
+    frames/imu: os_imu
 
     map/waitUntilMove: false
     map/dense/filtered: false

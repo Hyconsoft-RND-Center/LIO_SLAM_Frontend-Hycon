@@ -20,13 +20,13 @@ def generate_launch_description():
 
     # Set default arguments
     rviz = LaunchConfiguration('rviz', default='false')
-    pointcloud_topic = LaunchConfiguration('pointcloud_topic', default='/robot1/ouster/points')
-    imu_topic = LaunchConfiguration('imu_topic', default='/robot1/ouster/imu')
+    pointcloud_topic = LaunchConfiguration('pointcloud_topic', default='/ouster/points')
+    imu_topic = LaunchConfiguration('imu_topic', default='/ouster/imu')
     use_sim_time = LaunchConfiguration('use_sim_time')
-    odom_frame = LaunchConfiguration('odom_frame', default='robot1/odom')
-    base_frame = LaunchConfiguration('base_frame', default='robot1/base_link')
-    lidar_frame = LaunchConfiguration('lidar_frame', default='robot1/os_lidar')
-    imu_frame = LaunchConfiguration('imu_frame', default='robot1/os_imu')
+    odom_frame = LaunchConfiguration('odom_frame', default='odom')
+    base_frame = LaunchConfiguration('base_frame', default='base_link')
+    lidar_frame = LaunchConfiguration('lidar_frame', default='os_lidar')
+    imu_frame = LaunchConfiguration('imu_frame', default='os_imu')
 
     # Define arguments
     declare_sim_time_arg = DeclareLaunchArgument(
