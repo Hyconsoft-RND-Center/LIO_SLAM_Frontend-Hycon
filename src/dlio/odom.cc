@@ -305,16 +305,21 @@ void dlio::OdomNode::getParams() {
   dlio::declare_param(this, "odom/geo/Kgb", this->geo_Kgb_, 1.0);
   dlio::declare_param(this, "odom/geo/abias_max", this->geo_abias_max_, 1.0);
   dlio::declare_param(this, "odom/geo/gbias_max", this->geo_gbias_max_, 1.0);
+
+  // Status Output
+  dlio::declare_param(this, "odom/enable_status_output", this->enable_status_output_, true);
 }
 
 void dlio::OdomNode::start() {
 
-  printf("\033[2J\033[1;1H");
-  std::cout << std::endl
-            << "+-------------------------------------------------------------------+" << std::endl;
-  std::cout << "|               Direct LiDAR-Inertial Odometry v" << this->version_  << "               |"
-            << std::endl;
-  std::cout << "+-------------------------------------------------------------------+" << std::endl;
+  if (this->enable_status_output_) {
+    printf("\033[2J\033[1;1H");
+    std::cout << std::endl
+              << "+-------------------------------------------------------------------+" << std::endl;
+    std::cout << "|               Direct LiDAR-Inertial Odometry v" << this->version_  << "               |"
+              << std::endl;
+    std::cout << "+-------------------------------------------------------------------+" << std::endl;
+  }
 
 }
 
@@ -1932,6 +1937,10 @@ void dlio::OdomNode::debug() {
     std::accumulate(this->cpu_percents.begin(), this->cpu_percents.end(), 0.0) / this->cpu_percents.size();
 
   // Print to terminal
+  if (!this->enable_status_output_) {
+    return;
+  }
+
   printf("\033[2J\033[1;1H");
 
   std::cout << std::endl

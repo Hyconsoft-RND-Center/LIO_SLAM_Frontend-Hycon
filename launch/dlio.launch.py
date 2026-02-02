@@ -27,6 +27,7 @@ def generate_launch_description():
     base_frame = LaunchConfiguration('base_frame', default='base_link')
     lidar_frame = LaunchConfiguration('lidar_frame', default='os_lidar')
     imu_frame = LaunchConfiguration('imu_frame', default='os_imu')
+    enable_status_output = LaunchConfiguration('enable_status_output', default='false')
 
     # Define arguments
     declare_sim_time_arg = DeclareLaunchArgument(
@@ -69,6 +70,11 @@ def generate_launch_description():
         default_value=imu_topic,
         description='IMU topic name'
     )
+    declare_enable_status_output_arg = DeclareLaunchArgument(
+        'enable_status_output',
+        default_value=enable_status_output,
+        description='Enable status output to terminal (true/false)'
+    )
 
     # Load parameters
     dlio_yaml_path = PathJoinSubstitution([current_pkg, 'cfg', 'dlio.yaml'])
@@ -85,7 +91,8 @@ def generate_launch_description():
             'odom_frame': odom_frame, 
             'base_frame': base_frame, 
             'lidar_frame': lidar_frame, 
-            'imu_frame': imu_frame
+            'imu_frame': imu_frame,
+            'odom/enable_status_output': enable_status_output
         }],
         remappings=[
             ('pointcloud', pointcloud_topic),
@@ -132,6 +139,7 @@ def generate_launch_description():
         declare_rviz_arg,
         declare_pointcloud_topic_arg,
         declare_imu_topic_arg,
+        declare_enable_status_output_arg,
         dlio_odom_node,
         dlio_map_node,
         rviz_node

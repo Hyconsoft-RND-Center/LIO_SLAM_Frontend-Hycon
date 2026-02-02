@@ -363,4 +363,6 @@ private:
   double geo_abias_max_;
   double geo_gbias_max_;
 
+  bool enable_status_output_;
+
 };
