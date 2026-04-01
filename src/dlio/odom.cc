@@ -423,8 +423,8 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
   RCLCPP_INFO(this->get_logger(), "[DLIO][pub] publishToROS after publishCloud");
 
   // nav_msgs::msg::Path
-  this->path_ros.header.stamp = this->imu_stamp;
-  this->path_ros.header.frame_id = this->odom_frame;
+  // this->path_ros.header.stamp = this->imu_stamp;
+  // this->path_ros.header.frame_id = this->odom_frame;
 
   geometry_msgs::msg::PoseStamped p;
   p.header.stamp = this->imu_stamp;
@@ -944,8 +944,8 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   this->gicp_hasConverged = this->gicp.hasConverged();
 
   // Debug statements and publish custom DLIO message
-  this->debug_thread = std::thread( &dlio::OdomNode::debug, this );
-  this->debug_thread.detach();
+  // this->debug_thread = std::thread( &dlio::OdomNode::debug, this );
+  // this->debug_thread.detach();
 
   this->geo.first_opt_done = true;
 
