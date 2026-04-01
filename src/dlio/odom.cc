@@ -411,12 +411,12 @@ void dlio::OdomNode::publishPose() {
 }
 
 void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
-  RCLCPP_INFO(
-    this->get_logger(),
-    // "[DLIO][pub] publishToROS start | cloud_ptr=%s cloud_size=%zu",
-    published_cloud ? "valid" : "null",
-    published_cloud ? published_cloud->points.size() : 0
-  );
+  // RCLCPP_INFO(
+  //   this->get_logger(),
+  //   // "[DLIO][pub] publishToROS start | cloud_ptr=%s cloud_size=%zu",
+  //   published_cloud ? "valid" : "null",
+  //   published_cloud ? published_cloud->points.size() : 0
+  // );
 
   this->publishCloud(published_cloud, T_cloud);
 
@@ -513,11 +513,11 @@ void dlio::OdomNode::publishCloud(pcl::PointCloud<PointType>::ConstPtr published
     }
   }
 
-  RCLCPP_INFO(
-    this->get_logger(),
-    // "[DLIO][pub] publishCloud start | input_size=%zu",
-    published_cloud->points.size()
-  );
+  // RCLCPP_INFO(
+  //   this->get_logger(),
+  //   // "[DLIO][pub] publishCloud start | input_size=%zu",
+  //   published_cloud->points.size()
+  // );
 
   pcl::PointCloud<PointType>::Ptr deskewed_scan_t_ = std::make_shared<pcl::PointCloud<PointType>>();
 
@@ -529,11 +529,11 @@ void dlio::OdomNode::publishCloud(pcl::PointCloud<PointType>::ConstPtr published
   deskewed_ros.header.frame_id = this->odom_frame;
   this->deskewed_pub->publish(deskewed_ros);
 
-  RCLCPP_INFO(
-    this->get_logger(),
-    // "[DLIO][pub] publishCloud done | output_size=%zu",
-    deskewed_scan_t_->points.size()
-  );
+  // RCLCPP_INFO(
+  //   this->get_logger(),
+  //   // "[DLIO][pub] publishCloud done | output_size=%zu",
+  //   deskewed_scan_t_->points.size()
+  // );
 }
 
 void dlio::OdomNode::publishKeyframe(std::pair<std::pair<Eigen::Vector3f, Eigen::Quaternionf>, pcl::PointCloud<PointType>::ConstPtr> kf, rclcpp::Time timestamp) {
@@ -865,12 +865,12 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   }
   
   if (this->current_scan->points.size() <= this->gicp_min_num_points_) {
-    RCLCPP_ERROR(
-      this->get_logger(),
-      // "[DLIO][pc] return: Low number of points in the cloud (%zu <= %d)",
-      this->current_scan->points.size(),
-      this->gicp_min_num_points_
-    );
+    // RCLCPP_ERROR(
+    //   this->get_logger(),
+    //   // "[DLIO][pc] return: Low number of points in the cloud (%zu <= %d)",
+    //   this->current_scan->points.size(),
+    //   this->gicp_min_num_points_
+    // );
     return;
   }
 
@@ -930,12 +930,12 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   } else {
     published_cloud = this->deskewed_scan;
   }
-  RCLCPP_INFO(
-    this->get_logger(),
-    // "[DLIO][pc] before publishToROS | cloud_size=%zu densemap_filtered=%d",
-    published_cloud ? published_cloud->points.size() : 0,
-    static_cast<int>(this->densemap_filtered_)
-  );
+  // RCLCPP_INFO(
+  //   this->get_logger(),
+  //   // "[DLIO][pc] before publishToROS | cloud_size=%zu densemap_filtered=%d",
+  //   published_cloud ? published_cloud->points.size() : 0,
+  //   static_cast<int>(this->densemap_filtered_)
+  // );
   this->publishToROS(published_cloud, this->T_corr);
   // RCLCPP_INFO(this->get_logger(), "[DLIO][pc] after publishToROS");
 
