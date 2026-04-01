@@ -413,29 +413,29 @@ void dlio::OdomNode::publishPose() {
 void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
   RCLCPP_INFO(
     this->get_logger(),
-    "[DLIO][pub] publishToROS start | cloud_ptr=%s cloud_size=%zu",
+    // "[DLIO][pub] publishToROS start | cloud_ptr=%s cloud_size=%zu",
     published_cloud ? "valid" : "null",
     published_cloud ? published_cloud->points.size() : 0
   );
 
   this->publishCloud(published_cloud, T_cloud);
 
-  RCLCPP_INFO(this->get_logger(), "[DLIO][pub] publishToROS after publishCloud");
+  // RCLCPP_INFO(this->get_logger(), "[DLIO][pub] publishToROS after publishCloud");
 
-  nav_msgs::msg::Path
-  this->path_ros.header.stamp = this->imu_stamp;
-  this->path_ros.header.frame_id = this->odom_frame;
+  // nav_msgs::msg::Path
+  // this->path_ros.header.stamp = this->imu_stamp;
+  // this->path_ros.header.frame_id = this->odom_frame;
 
-  geometry_msgs::msg::PoseStamped p;
-  p.header.stamp = this->imu_stamp;
-  p.header.frame_id = this->odom_frame;
-  p.pose.position.x = this->state.p[0];
-  p.pose.position.y = this->state.p[1];
-  p.pose.position.z = this->state.p[2];
-  p.pose.orientation.w = this->state.q.w();
-  p.pose.orientation.x = this->state.q.x();
-  p.pose.orientation.y = this->state.q.y();
-  p.pose.orientation.z = this->state.q.z();
+  // geometry_msgs::msg::PoseStamped p;
+  // p.header.stamp = this->imu_stamp;
+  // p.header.frame_id = this->odom_frame;
+  // p.pose.position.x = this->state.p[0];
+  // p.pose.position.y = this->state.p[1];
+  // p.pose.position.z = this->state.p[2];
+  // p.pose.orientation.w = this->state.q.w();
+  // p.pose.orientation.x = this->state.q.x();
+  // p.pose.orientation.y = this->state.q.y();
+  // p.pose.orientation.z = this->state.q.z();
 
   // this->path_ros.poses.push_back(p);
   // this->path_pub->publish(this->path_ros);
@@ -497,25 +497,25 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
 void dlio::OdomNode::publishCloud(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
 
   if (!published_cloud) {
-    RCLCPP_ERROR(this->get_logger(), "[DLIO][pub] publishCloud: published_cloud is null");
+    // RCLCPP_ERROR(this->get_logger(), "[DLIO][pub] publishCloud: published_cloud is null");
     return;
   }
 
   if (published_cloud->points.empty()) {
-    RCLCPP_WARN(this->get_logger(), "[DLIO][pub] publishCloud: published_cloud empty");
+    // RCLCPP_WARN(this->get_logger(), "[DLIO][pub] publishCloud: published_cloud empty");
     return;
   }
 
   if (this->wait_until_move_) {
     if (this->length_traversed < 0.1) {
-      RCLCPP_WARN(this->get_logger(), "[DLIO][pub] publishCloud skipped by wait_until_move");
+      // RCLCPP_WARN(this->get_logger(), "[DLIO][pub] publishCloud skipped by wait_until_move");
       return;
     }
   }
 
   RCLCPP_INFO(
     this->get_logger(),
-    "[DLIO][pub] publishCloud start | input_size=%zu",
+    // "[DLIO][pub] publishCloud start | input_size=%zu",
     published_cloud->points.size()
   );
 
@@ -531,7 +531,7 @@ void dlio::OdomNode::publishCloud(pcl::PointCloud<PointType>::ConstPtr published
 
   RCLCPP_INFO(
     this->get_logger(),
-    "[DLIO][pub] publishCloud done | output_size=%zu",
+    // "[DLIO][pub] publishCloud done | output_size=%zu",
     deskewed_scan_t_->points.size()
   );
 }
@@ -932,12 +932,12 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   }
   RCLCPP_INFO(
     this->get_logger(),
-    "[DLIO][pc] before publishToROS | cloud_size=%zu densemap_filtered=%d",
+    // "[DLIO][pc] before publishToROS | cloud_size=%zu densemap_filtered=%d",
     published_cloud ? published_cloud->points.size() : 0,
     static_cast<int>(this->densemap_filtered_)
   );
   this->publishToROS(published_cloud, this->T_corr);
-  RCLCPP_INFO(this->get_logger(), "[DLIO][pc] after publishToROS");
+  // RCLCPP_INFO(this->get_logger(), "[DLIO][pc] after publishToROS");
 
   // Update some statistics
   this->comp_times.push_back(this->now().seconds() - then);
