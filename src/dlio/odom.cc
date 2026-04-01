@@ -422,9 +422,9 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
 
   RCLCPP_INFO(this->get_logger(), "[DLIO][pub] publishToROS after publishCloud");
 
-  // nav_msgs::msg::Path
-  // this->path_ros.header.stamp = this->imu_stamp;
-  // this->path_ros.header.frame_id = this->odom_frame;
+  nav_msgs::msg::Path
+  this->path_ros.header.stamp = this->imu_stamp;
+  this->path_ros.header.frame_id = this->odom_frame;
 
   geometry_msgs::msg::PoseStamped p;
   p.header.stamp = this->imu_stamp;
@@ -437,8 +437,8 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
   p.pose.orientation.y = this->state.q.y();
   p.pose.orientation.z = this->state.q.z();
 
-  this->path_ros.poses.push_back(p);
-  this->path_pub->publish(this->path_ros);
+  // this->path_ros.poses.push_back(p);
+  // this->path_pub->publish(this->path_ros);
 
   // transform: odom to baselink
   geometry_msgs::msg::TransformStamped transformStamped;
@@ -860,14 +860,14 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   this->preprocessPoints();
 
   if (!this->first_valid_scan) {
-    RCLCPP_WARN(this->get_logger(), "[DLIO][pc] return: first_valid_scan == false");
+    // RCLCPP_WARN(this->get_logger(), "[DLIO][pc] return: first_valid_scan == false");
     return;
   }
   
   if (this->current_scan->points.size() <= this->gicp_min_num_points_) {
     RCLCPP_ERROR(
       this->get_logger(),
-      "[DLIO][pc] return: Low number of points in the cloud (%zu <= %d)",
+      // "[DLIO][pc] return: Low number of points in the cloud (%zu <= %d)",
       this->current_scan->points.size(),
       this->gicp_min_num_points_
     );
@@ -875,9 +875,9 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   }
 
   // Compute Metrics
-  RCLCPP_INFO(this->get_logger(), "[DLIO][pc] before computeMetrics");
+  // RCLCPP_INFO(this->get_logger(), "[DLIO][pc] before computeMetrics");
   this->computeMetrics();
-  RCLCPP_INFO(this->get_logger(), "[DLIO][pc] after computeMetrics");
+  // RCLCPP_INFO(this->get_logger(), "[DLIO][pc] after computeMetrics");
 
   // Set Adaptive Parameters
   if (this->adaptive_params_) {
