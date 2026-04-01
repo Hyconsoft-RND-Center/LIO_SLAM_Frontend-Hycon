@@ -411,7 +411,16 @@ void dlio::OdomNode::publishPose() {
 }
 
 void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
+  RCLCPP_INFO(
+    this->get_logger(),
+    "[DLIO][pub] publishToROS start | cloud_ptr=%s cloud_size=%zu",
+    published_cloud ? "valid" : "null",
+    published_cloud ? published_cloud->points.size() : 0
+  );
+
   this->publishCloud(published_cloud, T_cloud);
+
+  RCLCPP_INFO(this->get_logger(), "[DLIO][pub] publishToROS after publishCloud");
 
   // nav_msgs::msg::Path
   this->path_ros.header.stamp = this->imu_stamp;
@@ -487,21 +496,44 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
 
 void dlio::OdomNode::publishCloud(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
 
-  if (this->wait_until_move_) {
-    if (this->length_traversed < 0.1) { return; }
+  if (!published_cloud) {
+    RCLCPP_ERROR(this->get_logger(), "[DLIO][pub] publishCloud: published_cloud is null");
+    return;
   }
+
+  if (published_cloud->points.empty()) {
+    RCLCPP_WARN(this->get_logger(), "[DLIO][pub] publishCloud: published_cloud empty");
+    return;
+  }
+
+  if (this->wait_until_move_) {
+    if (this->length_traversed < 0.1) {
+      RCLCPP_WARN(this->get_logger(), "[DLIO][pub] publishCloud skipped by wait_until_move");
+      return;
+    }
+  }
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "[DLIO][pub] publishCloud start | input_size=%zu",
+    published_cloud->points.size()
+  );
 
   pcl::PointCloud<PointType>::Ptr deskewed_scan_t_ = std::make_shared<pcl::PointCloud<PointType>>();
 
-  pcl::transformPointCloud (*published_cloud, *deskewed_scan_t_, T_cloud);
+  pcl::transformPointCloud(*published_cloud, *deskewed_scan_t_, T_cloud);
 
-  // published deskewed cloud
   sensor_msgs::msg::PointCloud2 deskewed_ros;
   pcl::toROSMsg(*deskewed_scan_t_, deskewed_ros);
   deskewed_ros.header.stamp = this->scan_header_stamp;
   deskewed_ros.header.frame_id = this->odom_frame;
   this->deskewed_pub->publish(deskewed_ros);
 
+  RCLCPP_INFO(
+    this->get_logger(),
+    "[DLIO][pub] publishCloud done | output_size=%zu",
+    deskewed_scan_t_->points.size()
+  );
 }
 
 void dlio::OdomNode::publishKeyframe(std::pair<std::pair<Eigen::Vector3f, Eigen::Quaternionf>, pcl::PointCloud<PointType>::ConstPtr> kf, rclcpp::Time timestamp) {
@@ -828,17 +860,24 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   this->preprocessPoints();
 
   if (!this->first_valid_scan) {
+    RCLCPP_WARN(this->get_logger(), "[DLIO][pc] return: first_valid_scan == false");
     return;
   }
-
+  
   if (this->current_scan->points.size() <= this->gicp_min_num_points_) {
-    RCLCPP_FATAL(this->get_logger(), "Low number of points in the cloud!");
+    RCLCPP_ERROR(
+      this->get_logger(),
+      "[DLIO][pc] return: Low number of points in the cloud (%zu <= %d)",
+      this->current_scan->points.size(),
+      this->gicp_min_num_points_
+    );
     return;
   }
 
   // Compute Metrics
-  this->metrics_thread = std::thread( &dlio::OdomNode::computeMetrics, this );
-  this->metrics_thread.detach();
+  RCLCPP_INFO(this->get_logger(), "[DLIO][pc] before computeMetrics");
+  this->computeMetrics();
+  RCLCPP_INFO(this->get_logger(), "[DLIO][pc] after computeMetrics");
 
   // Set Adaptive Parameters
   if (this->adaptive_params_) {
@@ -891,8 +930,14 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
   } else {
     published_cloud = this->deskewed_scan;
   }
-  this->publish_thread = std::thread( &dlio::OdomNode::publishToROS, this, published_cloud, this->T_corr );
-  this->publish_thread.detach();
+  RCLCPP_INFO(
+    this->get_logger(),
+    "[DLIO][pc] before publishToROS | cloud_size=%zu densemap_filtered=%d",
+    published_cloud ? published_cloud->points.size() : 0,
+    static_cast<int>(this->densemap_filtered_)
+  );
+  this->publishToROS(published_cloud, this->T_corr);
+  RCLCPP_INFO(this->get_logger(), "[DLIO][pc] after publishToROS");
 
   // Update some statistics
   this->comp_times.push_back(this->now().seconds() - then);
@@ -1469,12 +1514,17 @@ void dlio::OdomNode::computeMetrics() {
 
 void dlio::OdomNode::computeSpaciousness() {
 
+  if (!this->original_scan || this->original_scan->points.empty()) {
+    RCLCPP_WARN(this->get_logger(), "[DLIO][metrics] original_scan empty");
+    return;
+  }  
+
   // compute range of points
   std::vector<float> ds;
 
-  for (int i = 0; i <= this->original_scan->points.size(); i++) {
-    float d = std::sqrt(pow(this->original_scan->points[i].x, 2) +
-                        pow(this->original_scan->points[i].y, 2));
+  for (size_t i = 0; i < this->original_scan->points.size(); ++i) {
+    const auto& pt = this->original_scan->points[i];
+    float d = std::sqrt(pt.x * pt.x + pt.y * pt.y);
     ds.push_back(d);
   }
 
