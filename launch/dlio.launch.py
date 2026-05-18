@@ -7,6 +7,16 @@ from launch_ros.substitutions import FindPackageShare
 
 
 VALID_ROBOT_MODELS = {"scout", "ranger"}
+STATIC_TF_EXTRINSICS = {
+    "scout": {
+        "lidar": ("0.530", "0.0", "0.147", "0.0", "0.0", "1.0", "0.0"),
+        "imu": ("0.528", "-0.010", "0.117", "0.0", "0.0", "0.0", "1.0"),
+    },
+    "ranger": {
+        "lidar": ("0.465", "0.0", "0.015", "0.0", "0.0", "1.0", "0.0"),
+        "imu": ("0.465", "0.0", "0.015", "0.0", "0.0", "0.0", "1.0"),
+    },
+}
 
 
 def launch_setup(context, *args, **kwargs):
@@ -40,6 +50,41 @@ def launch_setup(context, *args, **kwargs):
         "cfg",
         "params.yaml"
     ])
+    static_tf = STATIC_TF_EXTRINSICS[robot_model]
+
+    base_to_lidar_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="base_to_lidar_tf",
+        arguments=[
+            "--x", static_tf["lidar"][0],
+            "--y", static_tf["lidar"][1],
+            "--z", static_tf["lidar"][2],
+            "--qx", static_tf["lidar"][3],
+            "--qy", static_tf["lidar"][4],
+            "--qz", static_tf["lidar"][5],
+            "--qw", static_tf["lidar"][6],
+            "--frame-id", base_frame,
+            "--child-frame-id", lidar_frame,
+        ],
+    )
+
+    base_to_imu_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="base_to_imu_tf",
+        arguments=[
+            "--x", static_tf["imu"][0],
+            "--y", static_tf["imu"][1],
+            "--z", static_tf["imu"][2],
+            "--qx", static_tf["imu"][3],
+            "--qy", static_tf["imu"][4],
+            "--qz", static_tf["imu"][5],
+            "--qw", static_tf["imu"][6],
+            "--frame-id", base_frame,
+            "--child-frame-id", imu_frame,
+        ],
+    )
 
     dlio_odom_node = Node(
         package="direct_lidar_inertial_odometry",
@@ -105,6 +150,8 @@ def launch_setup(context, *args, **kwargs):
     )
 
     return [
+        base_to_lidar_tf,
+        base_to_imu_tf,
         dlio_odom_node,
         dlio_map_node,
         rviz_node,

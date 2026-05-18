@@ -18,6 +18,15 @@
 
 #include "rclcpp/qos.hpp"
 
+namespace {
+
+inline int64_t stampToNanoseconds(const builtin_interfaces::msg::Time& stamp) {
+  return static_cast<int64_t>(stamp.sec) * 1000000000LL +
+         static_cast<int64_t>(stamp.nanosec);
+}
+
+}  // namespace
+
 dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
 
   this->getParams();
@@ -82,6 +91,10 @@ dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
   this->imu_buffer.set_capacity(this->imu_buffer_size_);
   this->first_imu_stamp = 0.;
   this->prev_imu_stamp = 0.;
+  this->state_stamp_msg_.sec = 0;
+  this->state_stamp_msg_.nanosec = 0;
+  this->state_stamp_ns_ = 0;
+  this->last_published_state_stamp_ns_ = 0;
 
   this->original_scan = std::make_shared<const pcl::PointCloud<PointType>>();
   this->deskewed_scan = std::make_shared<const pcl::PointCloud<PointType>>();
@@ -325,34 +338,69 @@ void dlio::OdomNode::start() {
 
 void dlio::OdomNode::publishPose() {
 
+  builtin_interfaces::msg::Time stamp_msg;
+  int64_t stamp_ns = 0;
+
+  Eigen::Vector3f p;
+  Eigen::Quaternionf q;
+  Eigen::Vector3f v_lin_w;
+  Eigen::Vector3f v_ang_b;
+
+  {
+    std::lock_guard<std::mutex> lock(this->geo.mtx);
+
+    if (!this->geo.first_opt_done) {
+      return;
+    }
+
+    if (this->state_stamp_ns_ <= 0) {
+      return;
+    }
+
+    if (this->state_stamp_ns_ <= this->last_published_state_stamp_ns_) {
+      return;
+    }
+
+    stamp_msg = this->state_stamp_msg_;
+    stamp_ns = this->state_stamp_ns_;
+
+    p = this->state.p;
+    q = this->state.q;
+    v_lin_w = this->state.v.lin.w;
+    v_ang_b = this->state.v.ang.b;
+
+    this->last_published_state_stamp_ns_ = stamp_ns;
+  }
+
   // nav_msgs::msg::Odometry
-  this->odom_ros.header.stamp = this->imu_stamp;
-  this->odom_ros.header.frame_id = this->odom_frame;
-  this->odom_ros.child_frame_id = this->baselink_frame;
+  nav_msgs::msg::Odometry odom_msg;
+  odom_msg.header.stamp = stamp_msg;
+  odom_msg.header.frame_id = this->odom_frame;
+  odom_msg.child_frame_id = this->baselink_frame;
 
-  this->odom_ros.pose.pose.position.x = this->state.p[0];
-  this->odom_ros.pose.pose.position.y = this->state.p[1];
-  this->odom_ros.pose.pose.position.z = this->state.p[2];
+  odom_msg.pose.pose.position.x = p[0];
+  odom_msg.pose.pose.position.y = p[1];
+  odom_msg.pose.pose.position.z = p[2];
 
-  this->odom_ros.pose.pose.orientation.w = this->state.q.w();
-  this->odom_ros.pose.pose.orientation.x = this->state.q.x();
-  this->odom_ros.pose.pose.orientation.y = this->state.q.y();
-  this->odom_ros.pose.pose.orientation.z = this->state.q.z();
+  odom_msg.pose.pose.orientation.w = q.w();
+  odom_msg.pose.pose.orientation.x = q.x();
+  odom_msg.pose.pose.orientation.y = q.y();
+  odom_msg.pose.pose.orientation.z = q.z();
 
-  this->odom_ros.twist.twist.linear.x = this->state.v.lin.w[0];
-  this->odom_ros.twist.twist.linear.y = this->state.v.lin.w[1];
-  this->odom_ros.twist.twist.linear.z = this->state.v.lin.w[2];
+  odom_msg.twist.twist.linear.x = v_lin_w[0];
+  odom_msg.twist.twist.linear.y = v_lin_w[1];
+  odom_msg.twist.twist.linear.z = v_lin_w[2];
 
-  this->odom_ros.twist.twist.angular.x = this->state.v.ang.b[0];
-  this->odom_ros.twist.twist.angular.y = this->state.v.ang.b[1];
-  this->odom_ros.twist.twist.angular.z = this->state.v.ang.b[2];
+  odom_msg.twist.twist.angular.x = v_ang_b[0];
+  odom_msg.twist.twist.angular.y = v_ang_b[1];
+  odom_msg.twist.twist.angular.z = v_ang_b[2];
 
   // Compute pose covariance from GICP Hessian (Cramer-Rao bound: Cov = H^-1)
   // Hessian order: [rx, ry, rz, tx, ty, tz]
   // ROS Odometry covariance order: [x, y, z, rx, ry, rz] (row-major 6x6 = 36)
   Eigen::Matrix<double, 6, 6> pose_cov = Eigen::Matrix<double, 6, 6>::Identity();
   
-  if (this->geo.first_opt_done && this->gicp_hasConverged) {
+  if (this->gicp_hasConverged) {
     // Get Hessian from GICP
     const Eigen::Matrix<double, 6, 6>& H = this->gicp.getFinalHessian();
     
@@ -387,27 +435,53 @@ void dlio::OdomNode::publishPose() {
   // Fill ROS covariance (row-major 6x6)
   for (int i = 0; i < 6; ++i) {
     for (int j = 0; j < 6; ++j) {
-      this->odom_ros.pose.covariance[i * 6 + j] = pose_cov(i, j);
+      odom_msg.pose.covariance[i * 6 + j] = pose_cov(i, j);
     }
   }
 
-  this->odom_pub->publish(this->odom_ros);
+  this->odom_pub->publish(odom_msg);
 
   // geometry_msgs::msg::PoseStamped
-  this->pose_ros.header.stamp = this->imu_stamp;
-  this->pose_ros.header.frame_id = this->odom_frame;
+  geometry_msgs::msg::PoseStamped pose_msg;
+  pose_msg.header.stamp = stamp_msg;
+  pose_msg.header.frame_id = this->odom_frame;
 
-  this->pose_ros.pose.position.x = this->state.p[0];
-  this->pose_ros.pose.position.y = this->state.p[1];
-  this->pose_ros.pose.position.z = this->state.p[2];
+  pose_msg.pose.position.x = p[0];
+  pose_msg.pose.position.y = p[1];
+  pose_msg.pose.position.z = p[2];
 
-  this->pose_ros.pose.orientation.w = this->state.q.w();
-  this->pose_ros.pose.orientation.x = this->state.q.x();
-  this->pose_ros.pose.orientation.y = this->state.q.y();
-  this->pose_ros.pose.orientation.z = this->state.q.z();
+  pose_msg.pose.orientation.w = q.w();
+  pose_msg.pose.orientation.x = q.x();
+  pose_msg.pose.orientation.y = q.y();
+  pose_msg.pose.orientation.z = q.z();
 
-  this->pose_pub->publish(this->pose_ros);
+  this->pose_pub->publish(pose_msg);
 
+  this->publishOdomTf(stamp_msg, p, q);
+
+}
+
+void dlio::OdomNode::publishOdomTf(
+  const builtin_interfaces::msg::Time& stamp,
+  const Eigen::Vector3f& p,
+  const Eigen::Quaternionf& q
+) {
+  geometry_msgs::msg::TransformStamped tf_msg;
+
+  tf_msg.header.stamp = stamp;
+  tf_msg.header.frame_id = this->odom_frame;
+  tf_msg.child_frame_id = this->baselink_frame;
+
+  tf_msg.transform.translation.x = p[0];
+  tf_msg.transform.translation.y = p[1];
+  tf_msg.transform.translation.z = p[2];
+
+  tf_msg.transform.rotation.w = q.w();
+  tf_msg.transform.rotation.x = q.x();
+  tf_msg.transform.rotation.y = q.y();
+  tf_msg.transform.rotation.z = q.z();
+
+  this->br->sendTransform(tf_msg);
 }
 
 void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
@@ -419,78 +493,6 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
   // );
 
   this->publishCloud(published_cloud, T_cloud);
-
-  // RCLCPP_INFO(this->get_logger(), "[DLIO][pub] publishToROS after publishCloud");
-
-  // nav_msgs::msg::Path
-  // this->path_ros.header.stamp = this->imu_stamp;
-  // this->path_ros.header.frame_id = this->odom_frame;
-
-  // geometry_msgs::msg::PoseStamped p;
-  // p.header.stamp = this->imu_stamp;
-  // p.header.frame_id = this->odom_frame;
-  // p.pose.position.x = this->state.p[0];
-  // p.pose.position.y = this->state.p[1];
-  // p.pose.position.z = this->state.p[2];
-  // p.pose.orientation.w = this->state.q.w();
-  // p.pose.orientation.x = this->state.q.x();
-  // p.pose.orientation.y = this->state.q.y();
-  // p.pose.orientation.z = this->state.q.z();
-
-  // this->path_ros.poses.push_back(p);
-  // this->path_pub->publish(this->path_ros);
-
-  // transform: odom to baselink
-  geometry_msgs::msg::TransformStamped transformStamped;
-
-  transformStamped.header.stamp = this->imu_stamp;
-  transformStamped.header.frame_id = this->odom_frame;
-  transformStamped.child_frame_id = this->baselink_frame;
-
-  transformStamped.transform.translation.x = this->state.p[0];
-  transformStamped.transform.translation.y = this->state.p[1];
-  transformStamped.transform.translation.z = this->state.p[2];
-
-  transformStamped.transform.rotation.w = this->state.q.w();
-  transformStamped.transform.rotation.x = this->state.q.x();
-  transformStamped.transform.rotation.y = this->state.q.y();
-  transformStamped.transform.rotation.z = this->state.q.z();
-
-  br->sendTransform(transformStamped);
-
-  // transform: baselink to imu
-  transformStamped.header.stamp = this->imu_stamp;
-  transformStamped.header.frame_id = this->baselink_frame;
-  transformStamped.child_frame_id = this->imu_frame;
-
-  transformStamped.transform.translation.x = this->extrinsics.baselink2imu.t[0];
-  transformStamped.transform.translation.y = this->extrinsics.baselink2imu.t[1];
-  transformStamped.transform.translation.z = this->extrinsics.baselink2imu.t[2];
-
-  Eigen::Quaternionf q(this->extrinsics.baselink2imu.R);
-  transformStamped.transform.rotation.w = q.w();
-  transformStamped.transform.rotation.x = q.x();
-  transformStamped.transform.rotation.y = q.y();
-  transformStamped.transform.rotation.z = q.z();
-
-  br->sendTransform(transformStamped);
-
-  // transform: baselink to lidar
-  transformStamped.header.stamp = this->imu_stamp;
-  transformStamped.header.frame_id = this->baselink_frame;
-  transformStamped.child_frame_id = this->lidar_frame;
-
-  transformStamped.transform.translation.x = this->extrinsics.baselink2lidar.t[0];
-  transformStamped.transform.translation.y = this->extrinsics.baselink2lidar.t[1];
-  transformStamped.transform.translation.z = this->extrinsics.baselink2lidar.t[2];
-
-  Eigen::Quaternionf qq(this->extrinsics.baselink2lidar.R);
-  transformStamped.transform.rotation.w = qq.w();
-  transformStamped.transform.rotation.x = qq.x();
-  transformStamped.transform.rotation.y = qq.y();
-  transformStamped.transform.rotation.z = qq.z();
-
-  br->sendTransform(transformStamped);
 
 }
 
@@ -1090,7 +1092,7 @@ void dlio::OdomNode::callbackImu(const sensor_msgs::msg::Imu::SharedPtr imu_raw)
 
     if (this->geo.first_opt_done) {
       // Geometric Observer: Propagate State
-      this->propagateState();
+      this->propagateState(imu->header.stamp);
     }
 
   }
@@ -1361,7 +1363,7 @@ void dlio::OdomNode::propagateGICP() {
 
 }
 
-void dlio::OdomNode::propagateState() {
+void dlio::OdomNode::propagateState(const builtin_interfaces::msg::Time& state_stamp) {
 
   // Lock thread to prevent state from being accessed by UpdateState
   std::lock_guard<std::mutex> lock( this->geo.mtx );
@@ -1396,6 +1398,9 @@ void dlio::OdomNode::propagateState() {
 
   this->state.v.ang.b = this->imu_meas.ang_vel;
   this->state.v.ang.w = this->state.q.toRotationMatrix() * this->state.v.ang.b;
+
+  this->state_stamp_msg_ = state_stamp;
+  this->state_stamp_ns_ = stampToNanoseconds(state_stamp);
 
 }
 

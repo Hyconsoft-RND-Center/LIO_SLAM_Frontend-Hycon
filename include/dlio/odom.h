@@ -14,6 +14,7 @@
 
 // ROS
 #include "rclcpp/rclcpp.hpp"
+#include <builtin_interfaces/msg/time.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
@@ -21,6 +22,8 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+
+#include <cstdint>
 
 // BOOST
 #include <boost/format.hpp>
@@ -58,6 +61,11 @@ private:
   void callbackImu(const sensor_msgs::msg::Imu::SharedPtr imu);
 
   void publishPose();
+  void publishOdomTf(
+    const builtin_interfaces::msg::Time& stamp,
+    const Eigen::Vector3f& p,
+    const Eigen::Quaternionf& q
+  );
 
   void publishToROS(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud);
   void publishCloud(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud);
@@ -86,7 +94,7 @@ private:
                          boost::circular_buffer<ImuMeas>::reverse_iterator end_imu_it);
   void propagateGICP();
 
-  void propagateState();
+  void propagateState(const builtin_interfaces::msg::Time& state_stamp);
   void updateState();
 
   void setAdaptiveParams();
@@ -239,6 +247,9 @@ private:
   double first_imu_stamp;
   double prev_imu_stamp;
   double imu_dp, imu_dq_deg;
+  builtin_interfaces::msg::Time state_stamp_msg_;
+  int64_t state_stamp_ns_;
+  int64_t last_published_state_stamp_ns_;
 
   struct ImuMeas {
     double stamp;
